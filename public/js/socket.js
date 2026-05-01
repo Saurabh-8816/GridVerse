@@ -21,7 +21,7 @@ class GridSocket {
    * Uses the current page's host to build the URL.
    */
   connect() {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${location.host}`;
 
     this.ws = new WebSocket(url);
@@ -29,7 +29,7 @@ class GridSocket {
     this.ws.onopen = () => {
       this.connected = true;
       this.reconnectAttempts = 0;
-      this._emit('connected');
+      this._emit("connected");
 
       // If we have a pending join, send it
       if (this._pendingName) {
@@ -42,18 +42,18 @@ class GridSocket {
         const msg = JSON.parse(event.data);
         this._emit(msg.type, msg);
       } catch (err) {
-        console.error('Failed to parse message:', err);
+        console.error("Failed to parse message:", err);
       }
     };
 
     this.ws.onclose = () => {
       this.connected = false;
-      this._emit('disconnected');
+      this._emit("disconnected");
       this._scheduleReconnect();
     };
 
     this.ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
+      console.error("WebSocket error:", err);
     };
   }
 
@@ -70,7 +70,7 @@ class GridSocket {
   _emit(event, data) {
     const handlers = this.handlers[event];
     if (handlers) {
-      handlers.forEach(fn => fn(data));
+      handlers.forEach((fn) => fn(data));
     }
   }
 
@@ -84,30 +84,37 @@ class GridSocket {
   /** Join the game with a username */
   join(name) {
     this._pendingName = name;
-    this._send({ type: 'join', name });
+    this._send({ type: "join", name });
   }
 
   /** Request to capture a hex cell */
   capture(col, row) {
-    this._send({ type: 'capture', col, row });
+    this._send({ type: "capture", col, row });
   }
 
   /** Send ping for latency measurement */
   ping() {
-    this._send({ type: 'ping' });
+    this._send({ type: "ping" });
   }
 
   /** Request a full grid reset */
   reset() {
-    this._send({ type: 'reset' });
+    this._send({ type: "reset" });
+  }
+
+  /** Undo the last capture */
+  undo() {
+    this._send({ type: "undo" });
+  }
+
+  /** Erase (release) one of the player's own hex cells */
+  erase(col, row) {
+    this._send({ type: "erase", col, row });
   }
 
   /** Exponential backoff reconnection */
   _scheduleReconnect() {
-    const delay = Math.min(
-      1000 * Math.pow(1.5, this.reconnectAttempts),
-      this.maxReconnectDelay
-    );
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), this.maxReconnectDelay);
     this.reconnectAttempts++;
 
     console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})...`);
