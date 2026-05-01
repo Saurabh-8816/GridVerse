@@ -26,6 +26,9 @@ class Game {
         this.grid.set(`${c},${r}`, { owner: null, color: null, capturedAt: 0 });
       }
     }
+
+    // Pre-draw the love message in pink hex tiles
+    this.drawDecoration();
   }
 
   /**
@@ -123,6 +126,7 @@ class Game {
 
     // --- Execute capture ---
     const previousOwner = cell.owner;
+    const previousColor  = cell.color; // save BEFORE overwriting (handles 'love' tiles)
     cell.owner = playerId;
     cell.color = player.color;
     cell.capturedAt = now;
@@ -131,7 +135,7 @@ class Game {
     player.score++;
     player.lastCapture = now;
 
-    if (previousOwner) {
+    if (previousOwner && previousOwner !== 'love') {
       const prev = this.players.get(previousOwner);
       if (prev) prev.score = Math.max(0, prev.score - 1);
     }
@@ -141,7 +145,7 @@ class Game {
       col,
       row,
       previousOwner,
-      previousOwnerColor: previousOwner ? (this.players.get(previousOwner)?.color ?? null) : null,
+      previousOwnerColor: previousColor, // actual color, works for 'love' tiles too
       timestamp: now,
     };
 
@@ -237,8 +241,8 @@ class Game {
   }
 
   /**
-   * Reset the entire grid — clears all owned cells and resets all scores.
-   * Called when any player clicks the reset button.
+   * Reset the entire grid — clears all owned cells, resets all scores,
+   * then re-draws the love message decoration.
    */
   resetGrid() {
     for (const cell of this.grid.values()) {
@@ -250,6 +254,89 @@ class Game {
       player.score = 0;
       player.lastCapture = 0;
     }
+    this.drawDecoration(); // restore love message after reset
+  }
+
+  /**
+   * Pre-draw "I LOVE YOU / KHUSHIKA" on the grid using a 5×7 pixel font.
+   * Tiles are owned by virtual owner 'love' (hot-pink colour).
+   * Real players can capture/overwrite them normally.
+   */
+  drawDecoration() {
+    const COLOR = 'hsl(340, 85%, 62%)'; // hot-pink / rose
+    const OWNER = 'love';
+
+    // 5-wide × 7-tall bitmaps (1 = filled hex, 0 = empty)
+    const FONT = {
+      'I': [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1]],
+      'L': [[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+      'O': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+      'V': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],
+      'E': [[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+      'Y': [[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+      'U': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+      'K': [[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],
+      'H': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+      'S': [[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[1,1,1,1,0]],
+      'A': [[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+      ' ': null,
+    };
+
+    const CHAR_W   = 5; // bitmap cols
+    const CHAR_H   = 7; // bitmap rows
+    const CHAR_GAP = 1; // gap between characters
+    const SPACE_W  = 3; // width of a space
+
+    /** Total grid-columns a string occupies */
+    const measure = (text) => {
+      let w = 0;
+      for (let i = 0; i < text.length; i++) {
+        w += FONT[text[i]] ? CHAR_W : SPACE_W;
+        if (i < text.length - 1) w += CHAR_GAP;
+      }
+      return w;
+    };
+
+    /** Stamp one text line starting at (startCol, startRow) */
+    const stamp = (text, startCol, startRow) => {
+      let col = startCol;
+      for (let i = 0; i < text.length; i++) {
+        const bitmap = FONT[text[i]];
+        if (bitmap) {
+          for (let r = 0; r < CHAR_H; r++) {
+            for (let c = 0; c < CHAR_W; c++) {
+              if (bitmap[r][c]) {
+                const gc = col + c;
+                const gr = startRow + r;
+                if (gc >= 0 && gc < this.cols && gr >= 0 && gr < this.rows) {
+                  const cell = this.grid.get(`${gc},${gr}`);
+                  if (cell) { cell.owner = OWNER; cell.color = COLOR; cell.capturedAt = 0; }
+                }
+              }
+            }
+          }
+          col += CHAR_W;
+        } else {
+          col += SPACE_W;
+        }
+        if (i < text.length - 1) col += CHAR_GAP;
+      }
+    };
+
+    const line1 = 'I LOVE YOU';
+    const line2 = 'KHUSHIKA';
+
+    // Centre horizontally
+    const col1 = Math.floor((this.cols - measure(line1)) / 2);
+    const col2 = Math.floor((this.cols - measure(line2)) / 2);
+
+    // Centre both lines vertically (line1 + 3-row gap + line2 = 17 rows)
+    const totalH = CHAR_H + 3 + CHAR_H;
+    const row1   = Math.floor((this.rows - totalH) / 2);
+    const row2   = row1 + CHAR_H + 3;
+
+    stamp(line1, col1, row1);
+    stamp(line2, col2, row2);
   }
 
   /** Serialize only owned cells (sparse) for initial state sync */
