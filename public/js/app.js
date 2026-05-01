@@ -152,6 +152,14 @@
     renderer.init(gameConfig.cols, gameConfig.rows);
     renderer.loadGrid(msg.grid);
 
+    // 💕 Secret: overlay love tiles locally — only Khushika ever receives loveGrid
+    if (msg.loveGrid) {
+      for (const [key, val] of Object.entries(msg.loveGrid)) {
+        const [c, r] = key.split(',').map(Number);
+        renderer.setCell(c, r, val.o, val.c);
+      }
+    }
+
     // Update UI
     playerColorDot.style.background = playerColor;
     playerNameDisplay.textContent = playerName;

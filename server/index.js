@@ -49,25 +49,34 @@ wss.on("connection", (ws, req) => {
           playerId = game.addPlayer(msg.name, ws);
           const player = game.players.get(playerId);
 
+          // Check for secret love trigger (case-insensitive)
+          const isKhushika = (msg.name || '').trim().toLowerCase() === 'your gf ks';
+
+          // Build the welcome payload
+          const welcomePayload = {
+            type: "welcome",
+            playerId,
+            color: player.color,
+            isAdmin: game.isAdmin(playerId),
+            grid: game.getGridState(),
+            players: game.getPlayersPublic(),
+            leaderboard: game.getLeaderboard(),
+            config: {
+              cols: game.cols,
+              rows: game.rows,
+              cooldownMs: game.cooldownMs,
+              lockMs: game.lockMs,
+            },
+            online: game.getOnlineCount(),
+          };
+
+          // 💕 Secret: attach love tiles ONLY for Khushika — invisible to everyone else
+          if (isKhushika) {
+            welcomePayload.loveGrid = game.getLoveGridState();
+          }
+
           // Send full initial state to the new player
-          ws.send(
-            JSON.stringify({
-              type: "welcome",
-              playerId,
-              color: player.color,
-              isAdmin: game.isAdmin(playerId),
-              grid: game.getGridState(),
-              players: game.getPlayersPublic(),
-              leaderboard: game.getLeaderboard(),
-              config: {
-                cols: game.cols,
-                rows: game.rows,
-                cooldownMs: game.cooldownMs,
-                lockMs: game.lockMs,
-              },
-              online: game.getOnlineCount(),
-            }),
-          );
+          ws.send(JSON.stringify(welcomePayload));
 
           // Tell everyone else about the new player
           broadcast(
